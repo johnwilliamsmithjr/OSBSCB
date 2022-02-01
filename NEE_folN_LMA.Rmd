@@ -44,47 +44,39 @@ library(neonstore)
 library(tidyverse)
 library(lubridate)
 #library(contentid)
+```
 
+```{r}
 ## get NSAE data from neon
 neon_download(product = 'DP4.00200.001', site = 'OSBS')
 
-## print index of neon table
-unique(neon_index()$table)
+```
 
+```{r}
 ## read in NSAE data using neon_read
 flux_data <- neon_read("nsae-basic")
+```
 
-flux_data <- flux_data %>% 
-  mutate(time = as_datetime(timeBgn))
-
-## set threshold value
-
-threshold <- 40
-
-## visualization of CO2 fluxes
-flux_data %>%
-  ggplot(aes(x = time, y = data.fluxCo2.nsae.flux)) + 
-  geom_point() +
-  scale_x_datetime(date_labels = "%Y-%m") +
-  facet_wrap(~siteID)
-
-flux_data %>% filter(qfqm.fluxCo2.turb.qfFinl == 0) %>% 
-  ggplot(aes(x = time, y = data.fluxCo2.nsae.flux)) + 
-  geom_point() +
-  scale_x_datetime(date_labels = "%Y-%m") +
-  facet_wrap(~siteID)
-
+```{r}
 ## do some filtering of the flux data
 co2_data <- flux_data %>% 
-  filter(qfqm.fluxCo2.turb.qfFinl == 0 & data.fluxCo2.turb.flux > -50 & data.fluxCo2.turb.flux < 50 & data.fluxMome.turb.veloFric >= 0.1) %>% 
-  select(time,data.fluxCo2.turb.flux, siteID, data.fluxH2o.turb.flux) %>% 
-  rename(nee = data.fluxCo2.turb.flux) %>% 
-  mutate(nee = ifelse(siteID == "OSBS" & year(time) < 2019, NA, nee)) %>% 
+  mutate(time = as_datetime(timeBgn)) %>%  
+  #filter(qfqm.fluxCo2.turb.qfFinl == 0 & data.fluxCo2.turb.flux > -50 & data.fluxCo2.turb.flux < 50 & data.fluxMome.turb.veloFric >= 0.1) %>% 
+  filter(data.fluxCo2.turb.flux > -50 & 
+           data.fluxCo2.turb.flux < 50 & 
+           data.fluxMome.turb.veloFric >= 0.1,
+         year(time) >= 2019) %>% 
+  select(time,data.fluxCo2.turb.flux, siteID) %>% 
+  rename(nee = data.fluxCo2.turb.flux)
 ## plot filtered data
 ggplot(co2_data, aes(x = time, y = nee)) +
   geom_point() +
   facet_wrap(~siteID)
 
+  
+```
+
+```{r}
 ## aggregation
 earliest <- min(as_datetime(c(co2_data$time)), na.rm = TRUE)
 latest <- max(as_datetime(c(co2_data$time)), na.rm = TRUE)
@@ -99,7 +91,7 @@ full_time <- tibble(time = rep(full_time, 1),
                                
 flux_target_30m <- left_join(full_time, co2_data, by = c("time", "siteID"))
 
-
+threshold <- 40
 valid_dates_nee <- flux_target_30m %>% 
   mutate(date = as_date(time)) %>% 
   filter(!is.na(nee)) %>% # & !is.na(le)) %>% 
@@ -107,28 +99,33 @@ valid_dates_nee <- flux_target_30m %>%
   summarise(count = n()) %>% 
   filter(count >= threshold)
 
-valid_dates_le <- flux_target_30m %>% 
-  mutate(date = as_date(time)) %>% 
-  filter(!is.na(le)) %>% # & !is.na(le)) %>% 
-  group_by(date, siteID) %>% 
-  summarise(count = n()) %>% 
-  filter(count >= 40)
-
 flux_target_daily <- flux_target_30m %>% 
   mutate(date = as_date(time)) %>% 
   group_by(date, siteID) %>% 
-  summarize(nee = mean(nee, na.rm = TRUE),
-            le = mean(le, na.rm = TRUE)) %>% 
+  summarize(nee = mean(nee, na.rm = TRUE)) %>% 
   mutate(nee = ifelse(date %in% valid_dates_nee$date, nee, NA),
-         le = ifelse(date %in% valid_dates_le$date, le, NA),
-         nee = ifelse(is.nan(nee), NA, nee),
-         le = ifelse(is.nan(le),NA, le)) %>% 
+         nee = ifelse(is.nan(nee), NA, nee)) %>% 
   rename(time = date) %>% 
   mutate(nee = (nee * 12 / 1000000) * (60 * 60 * 24))
+```
 
+```{r}
+num_points <- flux_target_daily %>% 
+  na.omit() %>% 
+  nrow()
+
+total_points <- flux_target_daily %>% 
+  nrow()
+
+num_points/total_points
+
+
+```
+
+```{r}
 ## plot aggregated data
 ggplot(flux_target_daily, aes(x = time, y = nee)) + 
   geom_point() +
-  facet_wrap(~siteID)
+  geom_smooth()
 ```
 
