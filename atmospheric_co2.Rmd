@@ -1,0 +1,79 @@
+---
+title: "Atmospheric CO2"
+author: "John W Smith"
+date: "1/31/2022"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Atmospheric CO2
+
+Here we are going to be extracting atmospheric CO2 data to use as drivers for the DALECev model. 
+
+We will start by reading in the data.
+
+```{r}
+## read in co2 data
+atm_carbon <- read.csv('./monthly_in_situ_co2_mlo.csv', skip = 56)
+## set column names 
+colnames(atm_carbon) <- c('Year', 'Month', 'DateE', 'Date', 'CO2', 'CO2_SA', 'Fit', 'SA_Fit', 'CO2_fill', 'SA_fill')
+## print first few observations
+head(atm_carbon)
+```
+
+So our goal is to make these into a data frame with: date and CO2.
+
+```{r}
+extract_co2 <- function(data, year){
+  if (year %% 4 == 0){
+    ndays <- c(31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+  } else{
+    ndays <- c(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+  }
+  co2_info <- matrix(NA, nrow = 0, ncol = 2)
+  colnames(co2_info) <- c('Date', 'CO2')
+  co2_info <- as.data.frame(co2_info)
+  CO2 <- c()
+  dates_co2 <- c()
+  for (i in 1:12){
+    index <- which(data$Year == year & data$Month == i)
+    CO2_val <- data$CO2[index]
+    CO2 <- c(CO2, rep(CO2_val, ndays[i]))
+    Date_val <- paste0(paste0(paste0(i, '-'), paste0(1:ndays[i], '-')), year)
+    dates_co2 <- c(dates_co2, Date_val)
+  }
+  return(list(CO2 = CO2, Dates = dates_co2))
+}
+```
+
+This function will extract the values, replicate them on the daily level for each month, and return these values plus the dates.
+
+```{r}
+test_function <- extract_co2(atm_carbon, year = 2000)
+plot(test_function$CO2)
+length(test_function$CO2)
+```
+
+Everything here looks good to go. Now let's extract some CO2 data from a couple of years, store it, and save it. Let's do, say, 2014 - 2021. 
+
+```{r}
+years <- 2014:2021
+atm_CO2 <- c()
+dates_extract <- c()
+for (i in years){
+  fn_output <- extract_co2(data = atm_carbon, year = i)
+  atm_CO2 <- c(atm_CO2, fn_output$CO2)
+  dates_extract <- c(dates_extract, fn_output$Dates)
+}
+
+plot(atm_CO2)
+
+df <- as.data.frame(cbind(atm_CO2, dates_extract))
+```
+
+
