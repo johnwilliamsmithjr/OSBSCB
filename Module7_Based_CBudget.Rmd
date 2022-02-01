@@ -1,0 +1,409 @@
+---
+title: "OSBS Carbon"
+author: "John Smith"
+date: "02/01/2022"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(neonUtilities)
+```
+
+Assumes knowledge of the following in R:
+
+- joins
+- importing csvs
+- selecting columns
+- creating new columns with mutate
+- group_by
+- summarize
+- stringr package (str_detect)
+
+Teaches
+- NEON API (zipsByProduct and stackByTable)
+- 
+
+# Step 1: Background on estimating carbon stocks
+
+    - Why is carbon storage in an ecosystem important?
+    - Where can carbon be found in a ecosystem?
+    - What is the difference between carbon stocks and fluxes?
+    - How do we estimate carbon in trees? Allometrics (reference Jenkins)
+    - How do we estimate carbon in soils? Quantative soil pits 
+          - Soil pits giving depth of horizon
+          - bulk density giving the mass to depth
+          - Chemical analysis giving the mass to carbon 
+  
+# Step 2: Explore the NEON project
+
+Summarize the design and goals of the NEON project: <https://www.neonscience.org/about/about/science-design>
+
+How many ecoregions are studied?
+
+What was the stragetry behind selecting the site locations?
+
+# Step 3: Develop hypotheses
+
+Your instructor will provide a list of NEON sites for you to develop the following hypothesis:
+
+1) What is the pattern in carbon stocks among the site? Based on information about location and ecosystem type, record what you think the order of the sites is - with a rank of 1 being the most carbon.
+
+2) What is the pattern of carbon stocks in vegetation? Based on information about location and ecosystem type, record what you think the order of the sites is - with a rank of 1 being the most carbon.
+
+3) What is the pattern of carbon stocks in soils? Based on information about location and ecosystem type, record what you think the order of the sites is - with a rank of 1 being the most carbon.
+
+# Step 5: Examine data products
+
+NEON data is organized by data product ID in the NEON Date Portal: <https://data.neonscience.org/static/browse.html>
+ 
+You will be using the following data products
+      - DP1.10098.001 (Woody plant vegetation structure)
+      - DP1.00096.001 (Soil physical properties (Megapit))
+      - DP1.00097.001 (Soil chemical properties (Megapit))
+      
+For each data product summarize the following based on the documents avialable in "View Product Details" link associated with each data product.
+      - How is the plot sampling done for each data product?
+      - What variables do you need from each data product to calcuate the carbon stocks in vegetation and soil at the site?
+      - What measurements are done that will allow for your to calculate vegetation and soil carbon stocks - refer to Step 1 and the presentation.
+      - How is the data in each product organized?
+
+# Step 6: Plan analysis
+
+Describe in a bulleted list your plan for calcluating tree and soil carbon stocks at your site
+
+# Step 7: Download data
+
+First, define the site ID
+```{r}
+site <- "OSBS"
+```
+
+and the data product ID 
+
+```{r}
+data_product <- "DP1.10098.001"
+```
+Second, use the `zipsByProduct()` function to download files via NEON's API
+```{r}
+ zipsByProduct(dpID=data_product, site=site, 
+                package="basic", check.size=F,
+                savepath = NA)
+```
+
+Third, since NEON data is organized by month and each monthly data package as multiple data tables, NEON has created a function to combined tables across months.  Use this function `stackByTable()` to create tables with the full time series
+
+```{r}
+stackByTable(filepath= "filesToStack10098/",
+             folder=T)
+```
+
+# Step 8: Calculate carbon in trees
+
+This step will challenge you to develop a workflow using the data science skills to calculate the carbon stocks in trees at your site.  In the end you should have a *site-level* mean carbon stock in *live trees* for each year that was sampled from the plots that are sampling the ecosystem under the flux tower (e.g., tower plots).  I expect to see your code, a time-series plot of the carbon stocks, and your calculated carbon stocks printed in the Rmarkdown document.
+
+Hints: 
+- use `filter(grepl("Live",plantStatus)` to select  for the live trees.  The `grepl()` function will find the rows with "Live" anywhere in variable character string
+- Remember that only 50% of biomass is carbon so you will need to convert from biomass to carbon
+- Assume that below ground biomass (i.e., roots) are 30% of aboveground biomass
+- Be very careful with the units at each step: the final units should be Kg C m^-2 (Kilogram of carbon per meter squared).  The order of magnitude should be 1 - 100.  
+- The information that you need is spread across tables.  Joining tables can be tricky because the plot table has repeating plotIDs, resulting in duplicated values when you join.  The function `distinct(plotID, .keep_all = TRUE)` can be used to select each plotID only once.
+- To simplify, only use one allometric equation from Jenkins et al. 2003 Forest Science.  Examine your tree species and choose the most appropriate equation.
+
+**This is how I solved it **
+Read in the separate tables
+
+```{r}
+ind_table <- read_csv("filesToStack10098/stackedFiles/vst_apparentindividual.csv")
+
+map_tag_table <- read_csv("filesToStack10098/stackedFiles/vst_mappingandtagging.csv")
+
+plot_table <- read_csv("filesToStack10098/stackedFiles/vst_perplotperyear.csv")
+
+allometrics <- read_csv("Allometrics.csv") %>% 
+  mutate(SPECIES = ifelse(SPECIES == "spp.", "sp.", SPECIES))
+
+genus_species <- unlist(str_split_fixed(map_tag_table$scientificName, " ", 3))
+
+map_tag_table <- map_tag_table %>% 
+  mutate(GENUS = genus_species[,1], 
+         SPECIES = genus_species[,2]) 
+
+map_tag_table <- left_join(map_tag_table, allometrics, by = c("GENUS","SPECIES"))
+
+map_tag_table <- map_tag_table %>% 
+  mutate(B1 = ifelse(is.na(B1), -2.0127, B1),
+         B2 = ifelse(is.na(B2), 2.4835, B2))
+
+```
+
+Select the key variables in each table and join into the individual table
+
+```{r}
+
+select_map_tag_table <- map_tag_table %>% 
+  select(individualID, scientificName, B1, B2) 
+
+select_plot_table <- plot_table %>% 
+  select(plotID,totalSampledAreaTrees,plotType) %>% 
+  distinct(plotID, .keep_all = TRUE)
+
+select_ind_table <- ind_table %>% 
+  select(individualID, plotID, date, stemDiameter,plantStatus) 
+
+combined_table <- inner_join(select_ind_table, select_map_tag_table, by = "individualID") %>% 
+  arrange(plotID,individualID)
+
+combined_table <- inner_join(combined_table, select_plot_table, by = c("plotID")) %>% 
+  arrange(individualID)
+
+```
+
+Tidy up the individual tree data to include only live trees from the tower plots.  Also create a variable that is the year of the sample date.
+
+```{r}
+combined_table_live_tower <- combined_table %>% 
+  mutate(year = year(date)) %>%
+  filter(str_detect(plantStatus,"Live"),
+         plotType == "tower") 
+```
+
+Calculate the biomass of each tree in the table
+
+```{r}
+tree_live_carbon <- combined_table_live_tower %>%
+    mutate(ag_tree_kg = exp(B1 + B2 * log(stemDiameter)),
+           bg_tree_kg = exp(-0.7747 + 0.8836 * log(ag_tree_kg)),
+           tree_kgC = (ag_tree_kg + bg_tree_kg) * 0.5)
+
+tree_live_carbon <- combined_table_live_tower %>%
+    mutate(ag_tree_kg = exp(B1 + B2 * log(stemDiameter)),
+           bg_tree_kg = ag_tree_kg * 0.3,
+           tree_kgC = (ag_tree_kg + bg_tree_kg) * 0.5)
+```
+
+Calculate the plot level biomass
+
+```{r}
+ plot_live_carbon <-  tree_live_carbon %>%
+    mutate(treeC_kgCm2 = (tree_kgC)/(totalSampledAreaTrees))  %>%
+    group_by(plotID, year) %>%
+    summarise(plot_kgCm2 = sum(treeC_kgCm2, na.rm = TRUE))
+```
+
+```{r}
+ggplot(plot_live_carbon, aes(x = year, y = plot_kgCm2, color = plotID)) + 
+  geom_point() +
+  geom_line()
+
+```
+
+```{r}
+ site_live_carbon <- plot_live_carbon %>%
+    group_by(year) %>%
+    summarize(mean_kgCperm2 = mean(plot_kgCm2, na.rm = TRUE),
+              sd_kgCperm2 = sd(plot_kgCm2))
+```
+
+```{r}
+ggplot(site_live_carbon, aes(x = year, y = mean_kgCperm2)) + 
+  geom_point() + 
+  geom_errorbar(aes(ymin=mean_kgCperm2-sd_kgCperm2, ymax=mean_kgCperm2+sd_kgCperm2), width=.2,
+                 position=position_dodge(0.05))
+
+```
+
+#Step 9: Calculate carbon in dead trees
+
+```{r}
+combined_table_dead_tower <- combined_table %>% 
+  mutate(year = year(date)) %>%
+  filter(grepl("Standing dead",plantStatus),
+         plotType == "tower") 
+```
+
+Calculate the biomass of each tree in the table
+
+```{r}
+tree_dead_carbon <- combined_table_dead_tower %>%
+    mutate(ag_tree_kg = exp(B1 + B2 * log(stemDiameter)),
+           bg_tree_kg = exp(-0.7747 + 0.8836 * log(ag_tree_kg)),
+           tree_kgC = (ag_tree_kg + bg_tree_kg) *0.5)
+```
+
+Calculate the plot level biomass
+
+```{r}
+ plot_dead_carbon <-  tree_dead_carbon %>%
+    mutate(treeC_kgCm2 = (tree_kgC)/(totalSampledAreaTrees))  %>%
+    group_by(plotID, year) %>%
+    summarise(plot_kgCm2 = sum(treeC_kgCm2, na.rm = TRUE))
+```
+
+```{r}
+ site_dead_carbon <- plot_dead_carbon %>%
+    group_by(year) %>%
+    summarize(mean_kgCperm2 = mean(plot_kgCm2, na.rm = TRUE),
+              sd_kgCperm2 = sd(plot_kgCm2))
+```
+
+```{r}
+ggplot(plot_dead_carbon, aes(x = year, y = plot_kgCm2, color = plotID)) + 
+  geom_point() +
+  geom_line()
+
+```
+
+# Step 10: Calculate carbon in dead trees on the ground
+
+```{r}
+#Download bieogeochemistry soil data to get carbon concentration
+data_product1 <- "DP1.10014.001"
+#Download physical soil data to get bulk density
+data_product2 <- "DP1.10010.001"
+```
+
+```{r}
+site <- "OSBS"
+  zipsByProduct(dpID=data_product1, site=site, 
+                package="basic", check.size=F)
+
+  zipsByProduct(dpID=data_product2, site=site, 
+                package="basic", check.size=F)
+```
+
+```{r}
+stackByTable(filepath= "filesToStack10014/", 
+               folder=T)
+stackByTable(filepath= "filesToStack10010/", 
+               folder=T)
+```
+
+
+```{r}
+log_table <- read_csv("filesToStack10010/stackedFiles/cdw_fieldtally.csv")
+
+log_bulk_density <- 0.03 #g per cm
+
+#logMaxDiameter is in units of cm
+#logLength is in units of m
+
+log_table <- log_table %>% 
+  mutate(year = year(date)) %>% 
+  filter(plotType == "tower") %>% 
+  mutate(CWD_kgC = 0.5 * logMaxDiameter * (logLength * 100) * 0.03 / 1000)
+
+plot_cwd_carbon <- log_table %>% 
+  group_by(plotID,year) %>% 
+  summarise(plot_CWD_kgC = sum(CWD_kgC, na.rm = TRUE))
+
+site_cwd_carbon <- plot_cwd_carbon %>% 
+  group_by(year) %>% 
+  summarize(mean_kgCperm2 = mean(plot_CWD_kgC),
+            sd_CWD_kgC = sd(plot_CWD_kgC))
+```
+
+# Step 10: Calculate carbon in soils
+
+This step will challenge you to develop a workflow using the data science skills to calculate the carbon stocks in soils at your site.  In the end you should have an estimate of soil carbon from the soil Megapit.  I expect to see your code, a plot of how carbon varies with depth, and your calculated carbon stocks printed in the Rmarkdown document.
+
+**This is how I solved it **
+
+```{r}
+#Download bieogeochemistry soil data to get carbon concentration
+#data_product1 <- "DP1.00097.001"
+#Download physical soil data to get bulk density
+data_product2 <- "DP1.00096.001"
+```
+
+```{r}
+  #zipsByProduct(dpID=data_product1, site=site, 
+  #              package="basic", check.size=F)
+
+  zipsByProduct(dpID=data_product2, site=site, 
+                package="basic", check.size=F)
+```
+  
+```{r}
+#stackByTable(filepath= "filesToStack00097/", 
+#               folder=T)
+stackByTable(filepath= "filesToStack00096/", 
+               folder=T)
+```
+  
+```{r}
+mgc_perbiogeosample <- read_csv("filesToStack00096/stackedFiles/mgp_perbiogeosample.csv")
+mgp_perbulksample <- read_csv("filesToStack00096/stackedFiles/mgp_perbulksample.csv")
+```
+  
+```{r}  
+bulk_density <- mgp_perbulksample %>% 
+    filter(bulkDensSampleType == "Regular") %>% 
+    select(horizonName,bulkDensExclCoarseFrag) 
+
+  #gramsPerCubicCentimeter
+horizon_carbon <- mgc_perbiogeosample %>% 
+    filter(biogeoSampleType == "Regular") %>% 
+    select(horizonName,biogeoTopDepth,biogeoBottomDepth,carbonTot) 
+```
+  
+
+```{r}
+  #Unit notes
+  #bulkDensExclCoarseFrag = gramsPerCubicCentimeter
+  #carbonTot = gramsPerKilogram
+  
+  #Combine and calculate the carbon of each horizon
+horizon_combined <- inner_join(horizon_carbon,bulk_density, by = "horizonName") %>%
+    #Convert volume in g per cm3 to mass per area in g per cm2 by multiplying by layer thickness
+    mutate(horizon_soil_g_per_cm2 = (biogeoBottomDepth - biogeoTopDepth) * bulkDensExclCoarseFrag) %>% 
+    #Units of carbon are g per Kg soil but we have bulk density in g per cm2 so convert Kg soil to g soil
+    mutate(CTot_g_per_g_soil = carbonTot*(1/1000),  #Units are g C per g soil
+           horizon_C_g_percm2 = CTot_g_per_g_soil*horizon_soil_g_per_cm2, #Units are g C per cm2
+           horizon_C_kg_per_m2 = horizon_C_g_percm2 * 10000 / 1000) %>% #Units are g C per m2
+    select(-CTot_g_per_g_soil,-horizon_C_g_percm2) %>%
+    arrange(biogeoTopDepth)
+  
+site_soil_carbon <- horizon_combined %>% 
+    summarize(soilC_gC_m2 = sum(horizon_C_kg_per_m2))
+```
+
+```{r}
+ggplot(horizon_combined, map = aes(-biogeoTopDepth,horizon_C_kg_per_m2)) +
+  geom_line() +
+  geom_point() +
+  labs(y = "Carbon", x = "Depth", title = "Soil carbon by depth") +
+  coord_flip()
+```
+
+# Step 10: Evaluate hypothesis
+
+```{r}
+total_carbon_components <- unlist(c(site_live_carbon$mean_kgCperm2[1],site_dead_carbon$mean_kgCperm2[1],site_cwd_carbon$mean_kgCperm2[1],site_soil_carbon)) 
+
+total_carbon_components <- c(total_carbon_components,sum(total_carbon_components))
+
+names(total_carbon_components) <- c("Live Trees", "Standing Dead", "Down Coarse Wood", "Soil", "Total")
+
+total_carbon_components
+
+```
+
+
+First, compare your code used to calculate the carbon stocks to the others in your group.  How did you differ in how you solved the problem?
+
+Second, revise your code and your carbon calculations based on the feedback from sharing your code with your larger group.
+
+Third, compare your observed patterns in carbon stocks across sites and between vegetation and soil to your hypotheses.  If they didn't match up, suggest reasons for why you the observations differ from your expectations.
+
+#Step 11: Scaling up
+
+Using your code for estimating the carbon stocks at a single site, create code that calculates the carbon stocks at all of the sites in your code without copying and pasting the same code four times (i.e. you will use some sort of loop).
+
