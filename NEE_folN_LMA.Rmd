@@ -43,7 +43,7 @@ library(neonUtilities)
 library(neonstore)
 library(tidyverse)
 library(lubridate)
-library(contentid)
+#library(contentid)
 
 ## get NSAE data from neon
 neon_download(product = 'DP4.00200.001', site = 'OSBS')
@@ -68,33 +68,18 @@ flux_data %>%
   scale_x_datetime(date_labels = "%Y-%m") +
   facet_wrap(~siteID)
 
-flux_data %>% filter(qfqm.fluxCo2.turb.qfFinl == 0 & 
-                       qfqm.fluxCo2.stor.qfFinl == 0) %>% 
+flux_data %>% filter(qfqm.fluxCo2.turb.qfFinl == 0) %>% 
   ggplot(aes(x = time, y = data.fluxCo2.nsae.flux)) + 
   geom_point() +
   scale_x_datetime(date_labels = "%Y-%m") +
   facet_wrap(~siteID)
 
-## visualization of h2o fluxes
-flux_data %>% filter(qfqm.fluxH2o.turb.qfFinl == 0) %>% 
-  ggplot(aes(x = time, y = data.fluxH2o.turb.flux)) + 
-  geom_point() +
-  scale_x_datetime(date_labels = "%Y-%m") +
-  facet_wrap(~siteID)
-
-flux_data <- flux_data %>% 
-  mutate(time = as_datetime(timeBgn))
-
 ## do some filtering of the flux data
 co2_data <- flux_data %>% 
-  filter(qfqm.fluxCo2.turb.qfFinl == 0 & data.fluxCo2.turb.flux > -50 & data.fluxCo2.turb.flux < 50 & data.fluxMome.turb.veloFric >= 0.2) %>% 
+  filter(qfqm.fluxCo2.turb.qfFinl == 0 & data.fluxCo2.turb.flux > -50 & data.fluxCo2.turb.flux < 50 & data.fluxMome.turb.veloFric >= 0.1) %>% 
   select(time,data.fluxCo2.turb.flux, siteID, data.fluxH2o.turb.flux) %>% 
   rename(nee = data.fluxCo2.turb.flux) %>% 
-  mutate(nee = ifelse(siteID == "OSBS" & year(time) < 2019, NA, nee),
-         nee = ifelse(siteID == "SRER" & year(time) < 2019, NA, nee)) %>% 
-  rename(le = data.fluxH2o.turb.flux) %>% 
-  mutate(le = ifelse(siteID == "OSBS" & year(time) < 2019, NA, le),
-         le = ifelse(siteID == "SRER" & year(time) < 2019, NA, le))
+  mutate(nee = ifelse(siteID == "OSBS" & year(time) < 2019, NA, nee)) %>% 
 ## plot filtered data
 ggplot(co2_data, aes(x = time, y = nee)) +
   geom_point() +
