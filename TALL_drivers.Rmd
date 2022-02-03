@@ -1,0 +1,163 @@
+---
+title: "Collecting NEON Driver Data"
+author: "John W Smith Jr"
+date: "1/25/2022"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Collecting TALL Driver Data
+
+If we want to run DALECev at Talladega National Forest (TALL) we need to collect a handful of daily driver information to get the process model off the ground. This information includes:
+
+- Daily temperature data (minimum, maximum)
+- Daily shortwave radiation data
+- Atmospheric Carbon
+- Latitude
+- Leaf Mass per Area
+
+In this document we are going to focus on: daily temperature data, daily shortwave radiation data. 
+
+We are going to pull NEON data using the `neonstore` package, available on GitHub. 
+
+## Temperature Data
+
+```{r, cache = TRUE}
+## load neonstore package
+library(neonstore)
+
+## download temperature data for TALL
+## the temperature data we are downloading is 
+## triple aspirated air temperature
+neon_download(product = 'DP1.00003.001', site = 'TALL')
+
+## show the data products we have stored
+print(unique(neon_index()$table))
+
+## read the 30 minute measurements into temp_table
+temp_table <- neon_read("TAAT_30min-basic", site = 'TALL')
+## format the end dates so that we can sort them
+temp_table$Date <- format(temp_table$endDateTime, format = '%Y-%m-%d')
+
+## sort the dates so we know how many unique days there are measurements for
+sorted.Date.unique <- sort(unique(temp_table$Date))
+
+## create the temp_info_TALL dataframe so that we can store
+## Date, Minimum Temp, Maximum Temp
+temp_info_TALL <- matrix(NA, nrow = length(sorted.Date.unique), ncol = 3)
+colnames(temp_info_TALL) <- c('Date', 'MinT', 'MaxT')
+temp_info_TALL <- as.data.frame(temp_info_TALL)
+
+## for loop to extract minimum and maximum temps
+for (i in 1:length(sorted.Date.unique)){
+  temp_info_TALL$Date[i] <- sorted.Date.unique[i]
+  temp_info_TALL$MinT[i] <- min(temp_table$tempTripleMinimum[which(temp_table$Date == sorted.Date.unique[i])])
+  temp_info_TALL$MaxT[i] <- max(temp_table$tempTripleMaximum[which(temp_table$Date == sorted.Date.unique[i])])
+}
+## I went ahead and remove this data point, which tells me that it 
+## was -70 degrees C in Florida
+#temp_info_TALL$MinT[2502] <- NA
+```
+
+Now that we've extracted the min and max temps, let's do a quick sanity check by plotting them.
+
+```{r}
+plot(temp_info_TALL$MinT, type = 'l', main = 'Minimum Temp (TALL)', ylab = 'Min Temp')
+plot(temp_info_TALL$MaxT, type = 'l', main = 'Maximum Temp (TALL)', ylab = 'Max Temp')
+```
+
+We see that we have some gaps missing from the data, and we'll have to do an imputation. We'll try this two different ways - once with `na_interpolation` in the `imputeTS` package, and once with a Heteroskedastic Gaussian Process from the `hetGP` package. 
+
+```{r, cache = TRUE}
+## load imputeTS
+library(imputeTS)
+
+## Interpolate and store
+temp_info_TALL$MaxTInterp <- na_interpolation(temp_info_TALL$MaxT)
+temp_info_TALL$MinTInterp <- na_interpolation(temp_info_TALL$MinT)
+
+## load hetGP
+library(hetGP)
+
+## fit heteroskedastic GP for imputation of the min temp
+mint_impute <- mleHetGP(
+        X = matrix(which(!is.na(temp_info_TALL$MinT))/length(temp_info_TALL$MinT), ncol = 1),
+        Z = temp_info_TALL$MinT[which(!is.na(temp_info_TALL$MinT))])
+## extract predictions at missing locations
+GP_preds_mint <- predict(object = mint_impute, 
+                    x = matrix(which(is.na(temp_info_TALL$MinT))/length(temp_info_TALL$MinT), ncol = 1))
+## store predictions in TALL temp info df
+temp_info_TALL$MinTGP <- temp_info_TALL$MinT
+temp_info_TALL$MinTGP[which(is.na(temp_info_TALL$MinTGP))] = GP_preds_mint$mean
+
+## fit heteroskedastic GP for imputation of the max temp
+maxt_impute <- mleHetGP(
+  X = matrix(which(!is.na(temp_info_TALL$MaxT))/length(temp_info_TALL$MaxT), ncol = 1),
+  Z = temp_info_TALL$MaxT[which(!is.na(temp_info_TALL$MaxT))])
+## extract predictions at missing locations
+GP_preds_maxt <- predict(object = maxt_impute, 
+                         x = matrix(which(is.na(temp_info_TALL$MaxT))/length(temp_info_TALL$MaxT), ncol = 1))
+## store predictions in TALL temp info df
+temp_info_TALL$MaxTGP <- temp_info_TALL$MaxT
+temp_info_TALL$MaxTGP[which(is.na(temp_info_TALL$MaxTGP))] = GP_preds_maxt$mean
+```
+
+Now let's take a look at the two interpolations
+
+```{r}
+plot(temp_info_TALL$MinTInterp, type = 'l', col = 'red', main = 'GP Interp (Black) vs NA Interp (Red) for MinT', ylab = 'Min Temp')
+points(temp_info_TALL$MinTGP, type = 'l', lwd = 1.5)
+
+plot(temp_info_TALL$MaxTInterp, type = 'l', col = 'red', main = 'GP Interp (Black) vs NA Interp (Red) for MaxT', ylab = 'Max Temp')
+points(temp_info_TALL$MaxTGP, type = 'l', lwd = 1.5)
+```
+
+We see that the GP interpolations are much more wavy than the `na_interpolation` predictions. They are borrowing information across the entire dataset to estimate how the process evolves. I have saved both interpolations, and we can use whichever you prefer. 
+
+## Shortwave Radiation
+
+Now we will pull shortwave radiation data from NEON and do some unit conversion to get their data into the format expected by DALECev. 
+
+```{r, cache = TRUE}
+## download shortwave radiation data
+neon_download(product = 'DP1.00022.001', site = 'TALL')
+
+## print unique data products and extract SRPP at
+## 30 minute intervals
+unique(neon_index()$table)
+rad_table <- neon_read("SRPP_30min-basic", site = 'TALL')
+
+## format dates
+rad_table$Date <- format(rad_table$endDateTime, format = '%Y-%m-%d')
+
+## sort dates and create radiation info dataframe
+sorted.Date.unique.rad <- sort(unique(rad_table$Date))
+rad_info_TALL <- matrix(NA, nrow = length(sorted.Date.unique.rad), ncol = 2)
+colnames(rad_info_TALL) <- c('Date', 'Rad')
+rad_info_TALL <- as.data.frame(rad_info_TALL)
+
+## extract radiation data
+for (i in 1:length(sorted.Date.unique.rad)){
+  rad_info_TALL$Date[i] <- sorted.Date.unique.rad[i]
+  rad_info_TALL$Rad[i] <- mean(rad_table$shortRadMean[which(rad_table$Date == sorted.Date.unique.rad[i])], na.rm = TRUE)
+}
+## unit conversion
+rad_info_TALL$RadScaled <- rad_info_TALL$Rad * .0864
+
+## remove values that are too large
+rad_info_TALL$RadScaled[which(rad_info_TALL$RadScaled > 35)] <- NA
+
+## sanity check
+plot(rad_info_TALL$RadScaled, type = 'l', main = 'TALL SW Radiation Data')
+```
+
+The plot seems to pass a sanity check at first glance.
+
+## Latitude
+
+This one was excruciatingly difficult, and required me to open `Google` and search for the lat/long coordinates. After several days of sifting through results, I was able to crack the Rosetta Stone and determine that TALL has a Latitude of 33.5.
