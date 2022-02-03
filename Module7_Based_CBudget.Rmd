@@ -1,5 +1,5 @@
 ---
-title: "OSBS Carbon"
+title: "TALL Carbon"
 author: "John Smith"
 date: "02/01/2022"
 output:
@@ -14,7 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(tidyverse)
 library(lubridate)
-library(neonUtilities)
+library(neonstore)
 ```
 
 Assumes knowledge of the following in R:
@@ -83,7 +83,7 @@ Describe in a bulleted list your plan for calcluating tree and soil carbon stock
 
 First, define the site ID
 ```{r}
-site <- "OSBS"
+site <- "TALL"
 ```
 
 and the data product ID 
@@ -91,19 +91,14 @@ and the data product ID
 ```{r}
 data_product <- "DP1.10098.001"
 ```
-Second, use the `zipsByProduct()` function to download files via NEON's API
+Second, use the `neon_download()` function to create a database of files for our data product and site.
 ```{r}
- zipsByProduct(dpID=data_product, site=site, 
-                package="basic", check.size=F,
-                savepath = NA)
+neon_download(product = data_product, site = site)
+
+print(unique(neon_index(site = site)$table))
 ```
 
-Third, since NEON data is organized by month and each monthly data package as multiple data tables, NEON has created a function to combined tables across months.  Use this function `stackByTable()` to create tables with the full time series
 
-```{r}
-stackByTable(filepath= "filesToStack10098/",
-             folder=T)
-```
 
 # Step 8: Calculate carbon in trees
 
@@ -121,14 +116,17 @@ Hints:
 Read in the separate tables
 
 ```{r}
-ind_table <- read_csv("filesToStack10098/stackedFiles/vst_apparentindividual.csv")
+## use neon_read to extract the desired data
+ind_table <- neon_read('vst_apparentindividual', site = site)
 
-map_tag_table <- read_csv("filesToStack10098/stackedFiles/vst_mappingandtagging.csv")
+map_tag_table <- neon_read('vst_mappingandtagging', site = site)
 
-plot_table <- read_csv("filesToStack10098/stackedFiles/vst_perplotperyear.csv")
+plot_table <- neon_read('vst_perplotperyear', site = site)
 
 allometrics <- read_csv("Allometrics.csv") %>% 
   mutate(SPECIES = ifelse(SPECIES == "spp.", "sp.", SPECIES))
+
+## link allodb
 
 genus_species <- unlist(str_split_fixed(map_tag_table$scientificName, " ", 3))
 
@@ -271,24 +269,19 @@ data_product2 <- "DP1.10010.001"
 ```
 
 ```{r}
-site <- "OSBS"
-  zipsByProduct(dpID=data_product1, site=site, 
-                package="basic", check.size=F)
+site <- "TALL"
+## use neon_download to get desired data products
+neon_download(product = data_product1, site = site)
 
-  zipsByProduct(dpID=data_product2, site=site, 
-                package="basic", check.size=F)
-```
+neon_download(product = data_product2, site = site)
 
-```{r}
-stackByTable(filepath= "filesToStack10014/", 
-               folder=T)
-stackByTable(filepath= "filesToStack10010/", 
-               folder=T)
+print(unique(neon_index(site = site)$table))
 ```
 
 
+
 ```{r}
-log_table <- read_csv("filesToStack10010/stackedFiles/cdw_fieldtally.csv")
+log_table <- neon_read("cdw_fieldtally", site = site)
 
 log_bulk_density <- 0.03 #g per cm
 
@@ -324,23 +317,15 @@ data_product2 <- "DP1.00096.001"
 ```
 
 ```{r}
-  #zipsByProduct(dpID=data_product1, site=site, 
-  #              package="basic", check.size=F)
-
-  zipsByProduct(dpID=data_product2, site=site, 
-                package="basic", check.size=F)
+## use neon_download to extract data product
+neon_download(product = data_product2, site = site)
+print(unique(neon_index(site = site)$table))
 ```
   
-```{r}
-#stackByTable(filepath= "filesToStack00097/", 
-#               folder=T)
-stackByTable(filepath= "filesToStack00096/", 
-               folder=T)
-```
   
 ```{r}
-mgc_perbiogeosample <- read_csv("filesToStack00096/stackedFiles/mgp_perbiogeosample.csv")
-mgp_perbulksample <- read_csv("filesToStack00096/stackedFiles/mgp_perbulksample.csv")
+mgc_perbiogeosample <- neon_read('mgp_perbiogeosample', site = site)
+mgp_perbulksample <- neon_read('mgp_perbulksample', site = site)
 ```
   
 ```{r}  

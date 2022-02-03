@@ -37,6 +37,7 @@ We have some good starting points from the neon4cast resources, in particular th
 
 We can modify this script to work for aggregating our NEE data for OSBS. In particular we will add a variable called "threshold" that will govern how many 30 min samples must have passed QAQC in the 24 hour period that we are aggregating over. 
 
+
 ```{r}
 ## load necessary libraries
 library(neonUtilities)
@@ -46,15 +47,14 @@ library(lubridate)
 #library(contentid)
 ```
 
-```{r}
+```{r, cache = TRUE}
 ## get NSAE data from neon
-neon_download(product = 'DP4.00200.001', site = 'OSBS')
-
+neon_download(product = 'DP4.00200.001', site = 'TALL')
 ```
 
-```{r}
+```{r, cache = TRUE}
 ## read in NSAE data using neon_read
-flux_data <- neon_read("nsae-basic")
+flux_data <- neon_read("nsae-basic", site = 'TALL')
 ```
 
 ```{r}
@@ -72,7 +72,6 @@ co2_data <- flux_data %>%
 ggplot(co2_data, aes(x = time, y = nee)) +
   geom_point() +
   facet_wrap(~siteID)
-
   
 ```
 
@@ -80,17 +79,13 @@ ggplot(co2_data, aes(x = time, y = nee)) +
 ## aggregation
 earliest <- min(as_datetime(c(co2_data$time)), na.rm = TRUE)
 latest <- max(as_datetime(c(co2_data$time)), na.rm = TRUE)
-
-
 full_time <- seq(min(c(co2_data$time), na.rm = TRUE), 
                  max(c(co2_data$time), na.rm = TRUE), 
                  by = "30 min")
-
 full_time <- tibble(time = rep(full_time, 1),
-                    siteID = c(rep("OSBS", length(full_time))))
+                    siteID = c(rep("TALL", length(full_time))))
                                
 flux_target_30m <- left_join(full_time, co2_data, by = c("time", "siteID"))
-
 threshold <- 40
 valid_dates_nee <- flux_target_30m %>% 
   mutate(date = as_date(time)) %>% 
@@ -98,7 +93,6 @@ valid_dates_nee <- flux_target_30m %>%
   group_by(date, siteID) %>% 
   summarise(count = n()) %>% 
   filter(count >= threshold)
-
 flux_target_daily <- flux_target_30m %>% 
   mutate(date = as_date(time)) %>% 
   group_by(date, siteID) %>% 
@@ -113,13 +107,9 @@ flux_target_daily <- flux_target_30m %>%
 num_points <- flux_target_daily %>% 
   na.omit() %>% 
   nrow()
-
 total_points <- flux_target_daily %>% 
   nrow()
-
 num_points/total_points
-
-
 ```
 
 ```{r}
