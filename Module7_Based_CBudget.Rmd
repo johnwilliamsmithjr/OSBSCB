@@ -17,50 +17,7 @@ library(lubridate)
 library(neonstore)
 ```
 
-Assumes knowledge of the following in R:
-
-- joins
-- importing csvs
-- selecting columns
-- creating new columns with mutate
-- group_by
-- summarize
-- stringr package (str_detect)
-
-Teaches
-- NEON API (zipsByProduct and stackByTable)
-- 
-
-# Step 1: Background on estimating carbon stocks
-
-    - Why is carbon storage in an ecosystem important?
-    - Where can carbon be found in a ecosystem?
-    - What is the difference between carbon stocks and fluxes?
-    - How do we estimate carbon in trees? Allometrics (reference Jenkins)
-    - How do we estimate carbon in soils? Quantative soil pits 
-          - Soil pits giving depth of horizon
-          - bulk density giving the mass to depth
-          - Chemical analysis giving the mass to carbon 
-  
-# Step 2: Explore the NEON project
-
-Summarize the design and goals of the NEON project: <https://www.neonscience.org/about/about/science-design>
-
-How many ecoregions are studied?
-
-What was the stragetry behind selecting the site locations?
-
-# Step 3: Develop hypotheses
-
-Your instructor will provide a list of NEON sites for you to develop the following hypothesis:
-
-1) What is the pattern in carbon stocks among the site? Based on information about location and ecosystem type, record what you think the order of the sites is - with a rank of 1 being the most carbon.
-
-2) What is the pattern of carbon stocks in vegetation? Based on information about location and ecosystem type, record what you think the order of the sites is - with a rank of 1 being the most carbon.
-
-3) What is the pattern of carbon stocks in soils? Based on information about location and ecosystem type, record what you think the order of the sites is - with a rank of 1 being the most carbon.
-
-# Step 5: Examine data products
+In this document, we will be creating a carbon budget for Talladega National Forest using data from `NEON`, and the tools `neonstore` and `allodb`.
 
 NEON data is organized by data product ID in the NEON Date Portal: <https://data.neonscience.org/static/browse.html>
  
@@ -68,30 +25,21 @@ You will be using the following data products
       - DP1.10098.001 (Woody plant vegetation structure)
       - DP1.00096.001 (Soil physical properties (Megapit))
       - DP1.00097.001 (Soil chemical properties (Megapit))
-      
-For each data product summarize the following based on the documents avialable in "View Product Details" link associated with each data product.
-      - How is the plot sampling done for each data product?
-      - What variables do you need from each data product to calcuate the carbon stocks in vegetation and soil at the site?
-      - What measurements are done that will allow for your to calculate vegetation and soil carbon stocks - refer to Step 1 and the presentation.
-      - How is the data in each product organized?
 
-# Step 6: Plan analysis
+# Download data
 
-Describe in a bulleted list your plan for calcluating tree and soil carbon stocks at your site
-
-# Step 7: Download data
-
-First, define the site ID
+First, we are going to want to define the site ID. The four letter site code for Talladega National Forest is `TALL`.
 ```{r}
 site <- "TALL"
 ```
 
-and the data product ID 
+We will also define the data product ID that we are going to extract first (Woody plant vegetation structure).
 
 ```{r}
 data_product <- "DP1.10098.001"
 ```
-Second, use the `neon_download()` function to create a database of files for our data product and site.
+
+Second, we will use the `neon_download()` function from `neonstore` to create a database of files for our data product and site.
 ```{r}
 neon_download(product = data_product, site = site)
 
@@ -100,19 +48,10 @@ print(unique(neon_index(site = site)$table))
 
 
 
-# Step 8: Calculate carbon in trees
+# Calculate carbon in trees
 
-This step will challenge you to develop a workflow using the data science skills to calculate the carbon stocks in trees at your site.  In the end you should have a *site-level* mean carbon stock in *live trees* for each year that was sampled from the plots that are sampling the ecosystem under the flux tower (e.g., tower plots).  I expect to see your code, a time-series plot of the carbon stocks, and your calculated carbon stocks printed in the Rmarkdown document.
+In this section, we will be calculating carbon in live and dead trees at Talladega. At the end we will have a *site-level* mean carbon stock in *live trees* for each year that was sampled from the plots that are sampling the ecosystem under the flux tower (e.g., tower plots).  
 
-Hints: 
-- use `filter(grepl("Live",plantStatus)` to select  for the live trees.  The `grepl()` function will find the rows with "Live" anywhere in variable character string
-- Remember that only 50% of biomass is carbon so you will need to convert from biomass to carbon
-- Assume that below ground biomass (i.e., roots) are 30% of aboveground biomass
-- Be very careful with the units at each step: the final units should be Kg C m^-2 (Kilogram of carbon per meter squared).  The order of magnitude should be 1 - 100.  
-- The information that you need is spread across tables.  Joining tables can be tricky because the plot table has repeating plotIDs, resulting in duplicated values when you join.  The function `distinct(plotID, .keep_all = TRUE)` can be used to select each plotID only once.
-- To simplify, only use one allometric equation from Jenkins et al. 2003 Forest Science.  Examine your tree species and choose the most appropriate equation.
-
-**This is how I solved it **
 Read in the separate tables
 
 ```{r}
@@ -142,19 +81,19 @@ map_tag_table <- map_tag_table %>%
 
 ```
 
-Select the key variables in each table and join into the individual table
+Select the key variables in each table and join into the individual table, making sure that we have `GENUS`, `SPECIES`, and `measurementHeight`. These will be important when we use `allodb` to estimate the amount of carbon.
 
 ```{r}
 
 select_map_tag_table <- map_tag_table %>% 
-  select(individualID, scientificName, B1, B2) 
+  select(individualID, scientificName, B1, B2, GENUS, SPECIES) 
 
 select_plot_table <- plot_table %>% 
   select(plotID,totalSampledAreaTrees,plotType) %>% 
   distinct(plotID, .keep_all = TRUE)
 
 select_ind_table <- ind_table %>% 
-  select(individualID, plotID, date, stemDiameter,plantStatus) 
+  select(individualID, plotID, date, stemDiameter,plantStatus, measurementHeight) 
 
 combined_table <- inner_join(select_ind_table, select_map_tag_table, by = "individualID") %>% 
   arrange(plotID,individualID)
@@ -162,29 +101,41 @@ combined_table <- inner_join(select_ind_table, select_map_tag_table, by = "indiv
 combined_table <- inner_join(combined_table, select_plot_table, by = c("plotID")) %>% 
   arrange(individualID)
 
+combined_table_dbh <- combined_table[which(combined_table$measurementHeight == 130),]
+
+combined_table_dbh <- combined_table_dbh[which(!is.na(combined_table_dbh$stemDiameter)),]
+
 ```
 
 Tidy up the individual tree data to include only live trees from the tower plots.  Also create a variable that is the year of the sample date.
 
 ```{r}
-combined_table_live_tower <- combined_table %>% 
+combined_table_live_tower <- combined_table_dbh %>% 
   mutate(year = year(date)) %>%
   filter(str_detect(plantStatus,"Live"),
          plotType == "tower") 
 ```
 
-Calculate the biomass of each tree in the table
+Calculate the biomass of each tree in the table. We will do this using `get_biomass` in the `allodb` package. This function takes as arguments: `dbh`, `genus`, `species`, `coords`. We have already extracted genus and species, and in fact we have already extracted dbh as well. The steps where we were subsetting based on measurement heights of 130 cm was actually subsetting to include only data that had dbh measurements. 
+
+In this next section, as well as a future one where we calculate dead tree carbon, we are going to make a simplfying assumption. We will assume that the below ground biomass of a tree is some fixed proportion of its above ground biomass. In our analysis, we will assume this value is $.3$, but it is a parameter that can be changed.
 
 ```{r}
-tree_live_carbon <- combined_table_live_tower %>%
-    mutate(ag_tree_kg = exp(B1 + B2 * log(stemDiameter)),
-           bg_tree_kg = exp(-0.7747 + 0.8836 * log(ag_tree_kg)),
-           tree_kgC = (ag_tree_kg + bg_tree_kg) * 0.5)
+ag_bg_prop <- .3
+```
+
+```{r}
+library(allodb)
 
 tree_live_carbon <- combined_table_live_tower %>%
-    mutate(ag_tree_kg = exp(B1 + B2 * log(stemDiameter)),
-           bg_tree_kg = ag_tree_kg * 0.3,
-           tree_kgC = (ag_tree_kg + bg_tree_kg) * 0.5)
+        mutate(ag_tree_kg = get_biomass(
+          dbh = combined_table_live_tower$stemDiameter,
+          genus = combined_table_live_tower$GENUS,
+          species = combined_table_live_tower$SPECIES,
+          coords = c(-87.3, 34.2)
+          ),
+         bg_tree_kg = ag_tree_kg * ag_bg_prop, ## assumption about ag to bg biomass
+         tree_kgC = (ag_tree_kg + bg_tree_kg) * 0.5) ## convert biomass to carbon
 ```
 
 Calculate the plot level biomass
@@ -218,10 +169,10 @@ ggplot(site_live_carbon, aes(x = year, y = mean_kgCperm2)) +
 
 ```
 
-#Step 9: Calculate carbon in dead trees
+# Calculate carbon in dead trees
 
 ```{r}
-combined_table_dead_tower <- combined_table %>% 
+combined_table_dead_tower <- combined_table_dbh %>% 
   mutate(year = year(date)) %>%
   filter(grepl("Standing dead",plantStatus),
          plotType == "tower") 
@@ -231,9 +182,14 @@ Calculate the biomass of each tree in the table
 
 ```{r}
 tree_dead_carbon <- combined_table_dead_tower %>%
-    mutate(ag_tree_kg = exp(B1 + B2 * log(stemDiameter)),
-           bg_tree_kg = exp(-0.7747 + 0.8836 * log(ag_tree_kg)),
-           tree_kgC = (ag_tree_kg + bg_tree_kg) *0.5)
+    mutate(ag_tree_kg = get_biomass(
+          dbh = combined_table_dead_tower$stemDiameter,
+          genus = combined_table_dead_tower$GENUS,
+          species = combined_table_dead_tower$SPECIES,
+          coords = c(-87.3, 34.2)
+          ),
+         bg_tree_kg = ag_tree_kg * ag_bg_prop,
+         tree_kgC = (ag_tree_kg + bg_tree_kg) * 0.5)
 ```
 
 Calculate the plot level biomass
@@ -259,7 +215,7 @@ ggplot(plot_dead_carbon, aes(x = year, y = plot_kgCm2, color = plotID)) +
 
 ```
 
-# Step 10: Calculate carbon in dead trees on the ground
+# Calculate carbon in dead trees on the ground
 
 ```{r}
 #Download bieogeochemistry soil data to get carbon concentration
@@ -303,11 +259,7 @@ site_cwd_carbon <- plot_cwd_carbon %>%
             sd_CWD_kgC = sd(plot_CWD_kgC))
 ```
 
-# Step 10: Calculate carbon in soils
-
-This step will challenge you to develop a workflow using the data science skills to calculate the carbon stocks in soils at your site.  In the end you should have an estimate of soil carbon from the soil Megapit.  I expect to see your code, a plot of how carbon varies with depth, and your calculated carbon stocks printed in the Rmarkdown document.
-
-**This is how I solved it **
+# Calculate carbon in soils
 
 ```{r}
 #Download bieogeochemistry soil data to get carbon concentration
@@ -368,7 +320,7 @@ ggplot(horizon_combined, map = aes(-biogeoTopDepth,horizon_C_kg_per_m2)) +
   coord_flip()
 ```
 
-# Step 10: Evaluate hypothesis
+# Carbon Table
 
 ```{r}
 total_carbon_components <- unlist(c(site_live_carbon$mean_kgCperm2[1],site_dead_carbon$mean_kgCperm2[1],site_cwd_carbon$mean_kgCperm2[1],site_soil_carbon)) 
@@ -380,15 +332,4 @@ names(total_carbon_components) <- c("Live Trees", "Standing Dead", "Down Coarse 
 total_carbon_components
 
 ```
-
-
-First, compare your code used to calculate the carbon stocks to the others in your group.  How did you differ in how you solved the problem?
-
-Second, revise your code and your carbon calculations based on the feedback from sharing your code with your larger group.
-
-Third, compare your observed patterns in carbon stocks across sites and between vegetation and soil to your hypotheses.  If they didn't match up, suggest reasons for why you the observations differ from your expectations.
-
-#Step 11: Scaling up
-
-Using your code for estimating the carbon stocks at a single site, create code that calculates the carbon stocks at all of the sites in your code without copying and pasting the same code four times (i.e. you will use some sort of loop).
 
