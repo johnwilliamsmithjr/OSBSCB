@@ -1,0 +1,63 @@
+---
+title: "TALL_MODIS_LAI"
+author: "John W Smith"
+date: "2/3/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## MODIS LAI
+
+In this document we will extract data on Leaf Area Index (LAI) from MODIS data for Talladega National Forest.
+
+The MODIS LAI data for Talladega can be obtained from their website (https://modis.ornl.gov/sites/?id=us_alabama_neon_tall), I have elected not to include it here as it requires an account to download and I do not want to distribute their data without proper permission. In particular, the LAI data that we will be examining is the `filtered_scaled_LAI_500m` dataset. 
+
+Let's start by reading in the data.
+
+```{r}
+modis_LAI <- read.csv('./filtered_scaled_Lai_500m.csv', header = FALSE)
+dim(modis_LAI)
+```
+
+The dataset has 1796 observations of LAI, averaged over 4 day periods. For a detailed understanding of the columns of the dataframe that we read in, one can be found here: https://lpdaac.usgs.gov/documents/624/MOD15_User_Guide_V6.pdf
+
+Our next task is to make a simple `qa_qc_filter` function, that takes as arguments a vector `x` and a threshold value. The function checks whether a certain proportion (governed by `threshold`) of the data in vector `x` is non-missing. If `x` meets this criteria, the mean is calculated sans `NA` values. Otherwise, `NA` is returned. This will ensure that the LAI values we extract have at least a minimum level of quality.
+
+```{r}
+## qa_qc_filter:
+## Inputs: x, threshold
+## x: numeric vector
+## threshold: minimum proportion of non-NA values
+qa_qc_filter <- function(x, threshold = .5){
+  N <- length(x)
+  n <- length(which(is.na(x)))
+  if ((n/N) <= threshold){
+    s <- mean(x, na.rm = TRUE)
+  } else{
+    s <- NA
+  }
+  return(s)
+}
+```
+
+Now that we have a filter, let's use it to extract the LAI for Talladega.
+
+```{r}
+## force entries to be numeric - they are read in as characters
+modis_LAI[,6:ncol(modis_LAI)] <- as.numeric(as.matrix(modis_LAI[,6:ncol(modis_LAI)]))
+
+## allocate space for the Julian 'AYYYYDDD' format and the mean LAI value subject to filtering
+LAI_date <- rep(0, nrow(modis_LAI))
+LAI_val <- rep(0, nrow(modis_LAI))
+
+## extract LAI values
+for (i in 1:nrow(modis_LAI)){
+  LAI_date[i] <- modis_LAI$V3[i]
+  LAI_val[i] <- qa_qc_filter(x = as.numeric(modis_LAI[i, 6:ncol(modis_LAI)]), threshold = .8)
+}
+
+plot(LAI_val, type = 'l', xlab = 'Time Index (4 Day Intervals)', ylab = 'LAI', main = 'LAI at Talladega')
+```
