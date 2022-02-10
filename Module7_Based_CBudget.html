@@ -204,15 +204,21 @@ pre code {
 <pre><code>##   comparing hashes against local file index...</code></pre>
 <pre><code>##   omitting 61 files previously downloaded</code></pre>
 <pre class="r"><code>print(unique(neon_index(site = site)$table))</code></pre>
-<pre><code>##  [1] &quot;validation&quot;                   &quot;categoricalCodes&quot;            
-##  [3] &quot;EML&quot;                          &quot;mgp_perarchivesample-basic&quot;  
-##  [5] &quot;mgp_perbiogeosample-basic&quot;    &quot;mgp_perbulksample-basic&quot;     
-##  [7] &quot;mgp_perhorizon-basic&quot;         &quot;mgp_permegapit-basic&quot;        
-##  [9] &quot;readme&quot;                       &quot;variables&quot;                   
-## [11] &quot;cdw_fieldtally-basic&quot;         &quot;cdw_densitydisk-basic&quot;       
-## [13] &quot;cdw_densitylog-basic&quot;         &quot;vst_apparentindividual-basic&quot;
-## [15] &quot;vst_mappingandtagging-basic&quot;  &quot;vst_perplotperyear-basic&quot;    
-## [17] &quot;vst_shrubgroup-basic&quot;         &quot;nsae-basic&quot;</code></pre>
+<pre><code>##  [1] &quot;validation&quot;                     &quot;categoricalCodes&quot;              
+##  [3] &quot;EML&quot;                            &quot;mgp_perarchivesample-basic&quot;    
+##  [5] &quot;mgp_perbiogeosample-basic&quot;      &quot;mgp_perbulksample-basic&quot;       
+##  [7] &quot;mgp_perhorizon-basic&quot;           &quot;mgp_permegapit-basic&quot;          
+##  [9] &quot;readme&quot;                         &quot;variables&quot;                     
+## [11] &quot;cdw_fieldtally-basic&quot;           &quot;cdw_densitydisk-basic&quot;         
+## [13] &quot;cdw_densitylog-basic&quot;           &quot;ltr_chemistrySubsampling-basic&quot;
+## [15] &quot;ltr_fielddata-basic&quot;            &quot;ltr_litterCarbonNitrogen-basic&quot;
+## [17] &quot;ltr_litterLignin-basic&quot;         &quot;ltr_massdata-basic&quot;            
+## [19] &quot;ltr_pertrap-basic&quot;              &quot;bbc_chemistryPooling-basic&quot;    
+## [21] &quot;bbc_dilution-basic&quot;             &quot;bbc_percore-basic&quot;             
+## [23] &quot;bbc_rootChemistry-basic&quot;        &quot;bbc_rootmass-basic&quot;            
+## [25] &quot;vst_apparentindividual-basic&quot;   &quot;vst_mappingandtagging-basic&quot;   
+## [27] &quot;vst_perplotperyear-basic&quot;       &quot;vst_shrubgroup-basic&quot;          
+## [29] &quot;nsae-basic&quot;</code></pre>
 </div>
 <div id="calculate-carbon-in-trees" class="section level1">
 <h1>Calculate carbon in trees</h1>
@@ -310,6 +316,7 @@ tree_live_carbon &lt;- combined_table_live_tower %&gt;%
 </div>
 <div id="calculate-carbon-in-dead-trees" class="section level1">
 <h1>Calculate carbon in dead trees</h1>
+<p>We will now use <code>allodb</code> to extract the carbon in dead trees.</p>
 <pre class="r"><code>combined_table_dead_tower &lt;- combined_table_dbh %&gt;% 
   mutate(year = year(date)) %&gt;%
   filter(grepl(&quot;Standing dead&quot;,plantStatus),
@@ -355,36 +362,149 @@ neon_download(product = data_product1, site = site)</code></pre>
 <pre><code>##   comparing hashes against local file index...</code></pre>
 <pre><code>##   omitting 13 files previously downloaded</code></pre>
 <pre class="r"><code>print(unique(neon_index(site = site)$table))</code></pre>
-<pre><code>##  [1] &quot;validation&quot;                   &quot;categoricalCodes&quot;            
-##  [3] &quot;EML&quot;                          &quot;mgp_perarchivesample-basic&quot;  
-##  [5] &quot;mgp_perbiogeosample-basic&quot;    &quot;mgp_perbulksample-basic&quot;     
-##  [7] &quot;mgp_perhorizon-basic&quot;         &quot;mgp_permegapit-basic&quot;        
-##  [9] &quot;readme&quot;                       &quot;variables&quot;                   
-## [11] &quot;cdw_fieldtally-basic&quot;         &quot;cdw_densitydisk-basic&quot;       
-## [13] &quot;cdw_densitylog-basic&quot;         &quot;vst_apparentindividual-basic&quot;
-## [15] &quot;vst_mappingandtagging-basic&quot;  &quot;vst_perplotperyear-basic&quot;    
-## [17] &quot;vst_shrubgroup-basic&quot;         &quot;nsae-basic&quot;</code></pre>
-<pre class="r"><code>log_table &lt;- neon_read(&quot;cdw_fieldtally&quot;, site = site)
+<pre><code>##  [1] &quot;validation&quot;                     &quot;categoricalCodes&quot;              
+##  [3] &quot;EML&quot;                            &quot;mgp_perarchivesample-basic&quot;    
+##  [5] &quot;mgp_perbiogeosample-basic&quot;      &quot;mgp_perbulksample-basic&quot;       
+##  [7] &quot;mgp_perhorizon-basic&quot;           &quot;mgp_permegapit-basic&quot;          
+##  [9] &quot;readme&quot;                         &quot;variables&quot;                     
+## [11] &quot;cdw_fieldtally-basic&quot;           &quot;cdw_densitydisk-basic&quot;         
+## [13] &quot;cdw_densitylog-basic&quot;           &quot;ltr_chemistrySubsampling-basic&quot;
+## [15] &quot;ltr_fielddata-basic&quot;            &quot;ltr_litterCarbonNitrogen-basic&quot;
+## [17] &quot;ltr_litterLignin-basic&quot;         &quot;ltr_massdata-basic&quot;            
+## [19] &quot;ltr_pertrap-basic&quot;              &quot;bbc_chemistryPooling-basic&quot;    
+## [21] &quot;bbc_dilution-basic&quot;             &quot;bbc_percore-basic&quot;             
+## [23] &quot;bbc_rootChemistry-basic&quot;        &quot;bbc_rootmass-basic&quot;            
+## [25] &quot;vst_apparentindividual-basic&quot;   &quot;vst_mappingandtagging-basic&quot;   
+## [27] &quot;vst_perplotperyear-basic&quot;       &quot;vst_shrubgroup-basic&quot;          
+## [29] &quot;nsae-basic&quot;</code></pre>
+<pre class="r"><code>## Download bieogeochemistry soil data to get carbon concentration
+data_product1 &lt;- &quot;DP1.10014.001&quot;
+site &lt;- &quot;TALL&quot;
+## use neon_download to get desired data products
+neon_download(product = data_product1, site = site)</code></pre>
+<pre><code>##   comparing hashes against local file index...</code></pre>
+<pre><code>##   omitting 22 files previously downloaded</code></pre>
+<pre class="r"><code>print(unique(neon_index(product = data_product1, site = site)$table))</code></pre>
+<pre><code>## [1] &quot;cdw_densitydisk-basic&quot; &quot;cdw_densitylog-basic&quot;  &quot;EML&quot;                  
+## [4] &quot;readme&quot;                &quot;variables&quot;</code></pre>
+<pre class="r"><code>data_product2 &lt;- &#39;DP1.10010.001&#39;
+neon_download(product = data_product2, site = site)</code></pre>
+<pre><code>##   comparing hashes against local file index...</code></pre>
+<pre><code>##   omitting 13 files previously downloaded</code></pre>
+<pre class="r"><code>print(unique(neon_index(product = data_product2, site = site)$table))</code></pre>
+<pre><code>## [1] &quot;cdw_fieldtally-basic&quot; &quot;EML&quot;                  &quot;readme&quot;              
+## [4] &quot;variables&quot;</code></pre>
+<pre class="r"><code>cdw_tally &lt;- neon_read(table = &#39;cdw_fieldtally-basic&#39;, site = site)
 
-log_bulk_density &lt;- 0.03 #g per cm
+cdw_density &lt;- neon_read(table = &#39;cdw_densitydisk-basic&#39;, site = site)
 
-#logMaxDiameter is in units of cm
-#logLength is in units of m
+log_table &lt;- neon_read(table = &#39;cdw_densitylog-basic&#39;, site = site)
 
-log_table &lt;- log_table %&gt;% 
-  mutate(year = year(date)) %&gt;% 
-  filter(plotType == &quot;tower&quot;) %&gt;% 
-  mutate(CWD_kgC = 0.5 * logMaxDiameter * (logLength * 100) * 0.03 / 1000)
+## filter by tower plot for log table
+log_table_filter &lt;- log_table %&gt;% 
+  filter(plotType == &quot;tower&quot;)
 
-plot_cwd_carbon &lt;- log_table %&gt;% 
-  group_by(plotID,year) %&gt;% 
-  summarise(plot_CWD_kgC = sum(CWD_kgC, na.rm = TRUE))</code></pre>
+## filter by tower plot for cdw table
+cdw_tally &lt;- cdw_tally %&gt;%
+  filter(plotType == &#39;tower&#39;)
+
+## create 
+log_table_filter$gcm3 &lt;- rep(NA, nrow(log_table_filter))
+
+## set site specific volume factor
+site_volume_factor &lt;- 5
+
+for (i in 1:nrow(log_table_filter)){
+  ## match log table sampleID to cdw density table sample ID
+  ind &lt;- which(cdw_density$sampleID == log_table_filter$sampleID[i])
+  ## produce g/cm^3 by multiplying bulk density of disk by site volume factor
+  log_table_filter$gcm3[i] &lt;- mean(cdw_density$bulkDensDisk[ind]) * site_volume_factor
+}
+
+## table of coarse wood
+site_cwd_carbon &lt;- log_table_filter %&gt;%
+  group_by(plotID) %&gt;%
+  summarize(mean_kgCperm2 = .5 * sum(gcm3, na.rm = TRUE) * .1)
+
+## print mean cwd
+mean(site_cwd_carbon$mean_kgCperm2)</code></pre>
+<pre><code>## [1] 0.3981204</code></pre>
+</div>
+<div id="calculate-carbon-in-fine-roots" class="section level1">
+<h1>Calculate carbon in fine roots</h1>
+<p>Here we are going to calculate the carbon stored in fine roots using the root chemistry data product. We will calculate the carbon in both dead and alive roots. Though we are interested mostly in live roots, at the time of writing this, there the 2021 NEON data for our site does not have <code>rootStatus</code> data available. Thus we will use historical data to compute an estimate of the ratio, so that we don’t have to throw away perfectly good information.</p>
+<pre class="r"><code>## root chemistry data product
+roots_DP &lt;- &#39;DP1.10067.001&#39;
+## set site
+site = &quot;TALL&quot;
+## use neon_download from neonstore to read in data
+neon_download(product = &#39;DP1.10067.001&#39;, site = site)</code></pre>
+<pre><code>##   comparing hashes against local file index...</code></pre>
+<pre><code>##   omitting 29 files previously downloaded</code></pre>
+<pre class="r"><code>## print available datasets from product
+print(unique(neon_index(site = &quot;TALL&quot;, product = &#39;DP1.10067.001&#39;)$table))</code></pre>
+<pre><code>## [1] &quot;bbc_chemistryPooling-basic&quot; &quot;bbc_dilution-basic&quot;        
+## [3] &quot;bbc_percore-basic&quot;          &quot;bbc_rootChemistry-basic&quot;   
+## [5] &quot;bbc_rootmass-basic&quot;         &quot;EML&quot;                       
+## [7] &quot;readme&quot;                     &quot;variables&quot;</code></pre>
+<pre class="r"><code>## read in bbc_percore
+bbc_percore &lt;- neon_read(&#39;bbc_percore-basic&#39;, site = site, product = roots_DP)
+## read in rootmass data
+rootmass &lt;- neon_read(&#39;bbc_rootmass-basic&#39;, site = site, product = roots_DP)
+## extract year
+rootmass$year = year(rootmass$collectDate)
+
+## set variables for liveDryMass, deadDryMass, unkDryMass, area
+rootmass$liveDryMass &lt;- rep(0, nrow(rootmass))
+rootmass$deadDryMass &lt;- rep(0, nrow(rootmass))
+rootmass$unkDryMass &lt;- rep(0, nrow(rootmass))
+rootmass$area &lt;- rep(NA, nrow(rootmass))</code></pre>
+<pre class="r"><code>for (i in 1:nrow(rootmass)){
+  ## match by sample ID
+  ind &lt;- which(bbc_percore$sampleID == rootmass$sampleID[i])
+  ## extract core sample area
+  rootmass$area[i] &lt;- bbc_percore$rootSampleArea[ind]
+  ## categorize mass as live, dead, or unknown
+  if (is.na(rootmass$rootStatus[i])){
+    rootmass$unkDryMass[i] &lt;- rootmass$dryMass[i]
+  } else if (rootmass$rootStatus[i] == &#39;live&#39;){
+    rootmass$liveDryMass[i] &lt;- rootmass$dryMass[i]
+  } else if (rootmass$rootStatus[i] == &#39;dead&#39;){
+    rootmass$deadDryMass[i] &lt;- rootmass$dryMass[i]
+  } else{
+    rootmass$unkDryMass[i] &lt;- rootmass$dryMass[i]
+  }
+}</code></pre>
+<pre class="r"><code>## aggregate at plot and year level
+## convert to kg (/1000) and carbon (.5)
+site_roots &lt;- rootmass %&gt;%
+  group_by(plotID, year) %&gt;%
+  summarize(mean_kgCperm2_live = .5*sum(liveDryMass/area, na.rm = TRUE)/1000,
+            mean_kgCperm2_dead = .5*sum(deadDryMass/area, na.rm = TRUE)/1000,
+            mean_kgCperm2_unk = .5*sum(unkDryMass/area, na.rm = TRUE)/1000)</code></pre>
 <pre><code>## `summarise()` has grouped output by &#39;plotID&#39;. You can override using the
 ## `.groups` argument.</code></pre>
-<pre class="r"><code>site_cwd_carbon &lt;- plot_cwd_carbon %&gt;% 
-  group_by(year) %&gt;% 
-  summarize(mean_kgCperm2 = mean(plot_CWD_kgC),
-            sd_CWD_kgC = sd(plot_CWD_kgC))</code></pre>
+<pre class="r"><code>mean(site_roots$mean_kgCperm2_live[which(site_roots$year == 2017)]) </code></pre>
+<pre><code>## [1] 1.34645</code></pre>
+<pre class="r"><code>mean(site_roots$mean_kgCperm2_dead[which(site_roots$year == 2017)]) </code></pre>
+<pre><code>## [1] 0.4293219</code></pre>
+<pre class="r"><code>mean(site_roots$mean_kgCperm2_unk[which(site_roots$year == 2017)]) </code></pre>
+<pre><code>## [1] 0</code></pre>
+<pre class="r"><code>mean(site_roots$mean_kgCperm2_live[which(site_roots$year == 2021)]) </code></pre>
+<pre><code>## [1] 0</code></pre>
+<pre class="r"><code>mean(site_roots$mean_kgCperm2_dead[which(site_roots$year == 2021)]) </code></pre>
+<pre><code>## [1] 0</code></pre>
+<pre class="r"><code>mean(site_roots$mean_kgCperm2_unk[which(site_roots$year == 2021)]) </code></pre>
+<pre><code>## [1] 1.687774</code></pre>
+<p>Then, we can look at the ratio of the carbon densities: <span class="math inline">\(\rho_{live} = \frac{C_{live}}{C_{live} + C_{dead}}\)</span> for 2017 and apply that to the data from 2021.</p>
+<pre class="r"><code>c_dens_live2017 &lt;- mean(site_roots$mean_kgCperm2_live[which(site_roots$year == 2017)]) 
+c_dens_dead2017 &lt;- mean(site_roots$mean_kgCperm2_dead[which(site_roots$year == 2017)]) 
+
+rho &lt;- c_dens_live2017 / (c_dens_live2017 + c_dens_dead2017)
+
+approx_live_cdens_2021 &lt;- rho * mean(site_roots$mean_kgCperm2_unk[which(site_roots$year == 2021)]) 
+print(approx_live_cdens_2021)</code></pre>
+<pre><code>## [1] 1.279727</code></pre>
 </div>
 <div id="calculate-carbon-in-soils" class="section level1">
 <h1>Calculate carbon in soils</h1>
@@ -397,15 +517,21 @@ neon_download(product = data_product2, site = site)</code></pre>
 <pre><code>##   comparing hashes against local file index...</code></pre>
 <pre><code>##   omitting 9 files previously downloaded</code></pre>
 <pre class="r"><code>print(unique(neon_index(site = site)$table))</code></pre>
-<pre><code>##  [1] &quot;validation&quot;                   &quot;categoricalCodes&quot;            
-##  [3] &quot;EML&quot;                          &quot;mgp_perarchivesample-basic&quot;  
-##  [5] &quot;mgp_perbiogeosample-basic&quot;    &quot;mgp_perbulksample-basic&quot;     
-##  [7] &quot;mgp_perhorizon-basic&quot;         &quot;mgp_permegapit-basic&quot;        
-##  [9] &quot;readme&quot;                       &quot;variables&quot;                   
-## [11] &quot;cdw_fieldtally-basic&quot;         &quot;cdw_densitydisk-basic&quot;       
-## [13] &quot;cdw_densitylog-basic&quot;         &quot;vst_apparentindividual-basic&quot;
-## [15] &quot;vst_mappingandtagging-basic&quot;  &quot;vst_perplotperyear-basic&quot;    
-## [17] &quot;vst_shrubgroup-basic&quot;         &quot;nsae-basic&quot;</code></pre>
+<pre><code>##  [1] &quot;validation&quot;                     &quot;categoricalCodes&quot;              
+##  [3] &quot;EML&quot;                            &quot;mgp_perarchivesample-basic&quot;    
+##  [5] &quot;mgp_perbiogeosample-basic&quot;      &quot;mgp_perbulksample-basic&quot;       
+##  [7] &quot;mgp_perhorizon-basic&quot;           &quot;mgp_permegapit-basic&quot;          
+##  [9] &quot;readme&quot;                         &quot;variables&quot;                     
+## [11] &quot;cdw_fieldtally-basic&quot;           &quot;cdw_densitydisk-basic&quot;         
+## [13] &quot;cdw_densitylog-basic&quot;           &quot;ltr_chemistrySubsampling-basic&quot;
+## [15] &quot;ltr_fielddata-basic&quot;            &quot;ltr_litterCarbonNitrogen-basic&quot;
+## [17] &quot;ltr_litterLignin-basic&quot;         &quot;ltr_massdata-basic&quot;            
+## [19] &quot;ltr_pertrap-basic&quot;              &quot;bbc_chemistryPooling-basic&quot;    
+## [21] &quot;bbc_dilution-basic&quot;             &quot;bbc_percore-basic&quot;             
+## [23] &quot;bbc_rootChemistry-basic&quot;        &quot;bbc_rootmass-basic&quot;            
+## [25] &quot;vst_apparentindividual-basic&quot;   &quot;vst_mappingandtagging-basic&quot;   
+## [27] &quot;vst_perplotperyear-basic&quot;       &quot;vst_shrubgroup-basic&quot;          
+## [29] &quot;nsae-basic&quot;</code></pre>
 <pre class="r"><code>mgc_perbiogeosample &lt;- neon_read(&#39;mgp_perbiogeosample&#39;, site = site)
 mgp_perbulksample &lt;- neon_read(&#39;mgp_perbulksample&#39;, site = site)</code></pre>
 <pre class="r"><code>bulk_density &lt;- mgp_perbulksample %&gt;% 
@@ -442,7 +568,7 @@ site_soil_carbon &lt;- horizon_combined %&gt;%
 </div>
 <div id="carbon-table" class="section level1">
 <h1>Carbon Table</h1>
-<pre class="r"><code>total_carbon_components &lt;- unlist(c(site_live_carbon$mean_kgCperm2[1],site_dead_carbon$mean_kgCperm2[1],site_cwd_carbon$mean_kgCperm2[1],site_soil_carbon)) 
+<pre class="r"><code>total_carbon_components &lt;- unlist(c(site_live_carbon$mean_kgCperm2[1],site_dead_carbon$mean_kgCperm2[1],mean(site_cwd_carbon$mean_kgCperm2),site_soil_carbon)) 
 
 total_carbon_components &lt;- c(total_carbon_components,sum(total_carbon_components))
 
@@ -450,9 +576,9 @@ names(total_carbon_components) &lt;- c(&quot;Live Trees&quot;, &quot;Standing De
 
 total_carbon_components</code></pre>
 <pre><code>##       Live Trees    Standing Dead Down Coarse Wood             Soil 
-##        9.4269270        0.5036538        0.6944760        7.6257929 
+##        9.4269270        0.5036538        0.3981204        7.6257929 
 ##            Total 
-##       18.2508497</code></pre>
+##       17.9544941</code></pre>
 </div>
 
 
